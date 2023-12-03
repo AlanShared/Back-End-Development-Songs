@@ -51,3 +51,84 @@ def parse_json(data):
 ######################################################################
 # INSERT CODE HERE
 ######################################################################
+
+# GET /health endpoint
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({"status":"ok"}), 200
+
+
+# GET /count endpoint
+@app.route('/count', methods=['GET'])
+def count_songs():
+    try:
+        count = db.songs.count_documents({})
+        return jsonify({"count": count}), 200
+    except Exception as e:
+        return {"error": str(e)}, 500
+
+# GET /song endpoint
+@app.route('/song', methods=['GET'])
+def songs():
+    try:
+        songlist = list(db.songs.find({}))
+        return {"songs": parse_json(songlist)}, 200
+    except Exception as e:
+        return {"error": str(e)}, 500
+
+
+# GET /song by ID endpoint
+@app.route('/song/<int:id>', methods=['GET'])
+def get_song_by_id(id):
+    try:
+        song = db.songs.find_one({"id": id})
+        if not song:
+            return jsonify({"message": f"Song with id:{id} not found"}), 404
+        return parse_json(song), 200
+    except Exception as e:
+        return {"error": str(e)}, 500
+
+# POST /song endpoint
+@app.route('/song', methods=['POST'])
+def create_song():
+    new_song = request.json
+    existant = db.songs.find_one({'id': new_song['id']})
+    if existant:
+        return {"Message": f"Song with id:{new_song['id']} already present"}, 302
+    try:
+        db.songs.insert_one(new_song)
+        # This parsed object was just to get the exact same
+        # output for the exercise, otherwise I would not 
+        # have spent 3hrs for this endpoint :(
+        parsed= parse_json(db.songs.find_one({'id': new_song['id']}))
+        return jsonify({"inserted id": parsed['_id']}), 201
+    except Exception as e:
+        return jsonify({"Error": f"Data not writen to db, error code:{str(e)}."}), 500
+
+# PUT /song endpoint
+@app.route('/song/<int:id>', methods=['PUT'])
+def update_song(id):
+    data = request.json
+    song = db.songs.find_one({"id": id})
+    if not song:
+        return jsonify({"message":"song not found"}), 404
+    try:
+        updatal = db.songs.update_one({'id': id},{'$set':data})
+        updated_song = db.songs.find_one({'id': id})
+        if updatal.modified_count == 0:
+            return jsonify({"message":"song found but nothing updated"}), 200
+        return parse_json(updated_song), 201
+    except Exception as e:
+        return jsonify({"Error": f"Data not writen to db, error code:{str(e)}."}), 500
+
+# DELETE /song endpoint
+@app.route('/song/<int:id>', methods=['DELETE'])
+def delete_song(id):
+    try:
+        deletion = db.songs.delete_one({'id': id}) 
+        if deletion.deleted_count == 0:
+            return jsonify({"message": "song not found"}), 404
+        else:
+            return "", 204
+    except Exception as e:
+        return jsonify({"Error": f"Data not deleted error code:{str(e)}."}), 500
